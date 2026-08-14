@@ -33,6 +33,85 @@ After generation, add the generated Plug to the browser pipeline, add the
 development-only route, and render the generated component in the root layout.
 The generator prints the exact snippets for these steps.
 
+## Generated Integration
+
+For local development, add the package using a path dependency:
+
+```elixir
+def deps do
+  [
+    {:any_login, path: "../any_login"}
+  ]
+end
+```
+
+Then fetch dependencies and run the generator from the Phoenix application:
+
+```sh
+mix deps.get
+mix phx.gen.any_login Accounts users \
+  --web MyAppWeb \
+  --auth MyAppWeb.UserAuth
+```
+
+The context must expose these functions:
+
+```elixir
+Accounts.list_users()
+Accounts.get_user(id)
+```
+
+Add the generated Plug to the browser pipeline in the router:
+
+```elixir
+pipeline :browser do
+  plug :accepts, ["html"]
+  plug :fetch_session
+  plug :fetch_live_flash
+  plug :put_root_layout, html: {MyAppWeb.Layouts, :root}
+  plug :protect_from_forgery
+  plug :put_secure_browser_headers
+  plug :fetch_current_scope_for_user
+  plug MyAppWeb.AnyLogin
+end
+```
+
+Add the generated route inside a development-only condition:
+
+```elixir
+if Application.compile_env(:my_app, :dev_routes, false) do
+  scope "/dev", MyAppWeb do
+    pipe_through :browser
+
+    post "/account-switcher", AnyLoginController, :switch
+  end
+end
+```
+
+Render the generated component in the root layout:
+
+```heex
+<%= if assigns[:any_login_enabled] do %>
+  <MyAppWeb.AnyLoginComponent.account_switcher
+    users={@any_login_users}
+    current_user={@current_scope && @current_scope.user}
+    return_to={@any_login_return_to}
+  />
+<% end %>
+```
+
+Start the application normally:
+
+```sh
+mix phx.server
+```
+
+The switcher appears in the bottom-left corner only when `:dev_routes` is
+enabled. The generator does not overwrite an existing router or layout. If
+the application already has a manually implemented account switcher, remove
+or disable that implementation before adding the generated route to avoid
+duplicate routes and UI.
+
 ## Installation
 
 If [available in Hex](https://hex.pm/docs/publish), the package can be installed
