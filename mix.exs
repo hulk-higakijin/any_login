@@ -6,6 +6,10 @@ defmodule AnyLogin.MixProject do
       app: :any_login,
       version: "0.1.0",
       elixir: "~> 1.20",
+      description: "A generator for development-only Phoenix account switching",
+      source_url: "https://github.com/higakijin/any_login",
+      package: package(),
+      docs: docs(),
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -21,8 +25,19 @@ defmodule AnyLogin.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+      {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
+  end
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/higakijin/any_login"},
+      files: ~w(lib test .formatter.exs mix.exs README.md LICENSE)
+    ]
+  end
+
+  defp docs do
+    [main: "readme", extras: ["README.md"]]
   end
 end

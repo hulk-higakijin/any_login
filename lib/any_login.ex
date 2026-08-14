@@ -1,18 +1,8 @@
 defmodule AnyLogin do
   @moduledoc """
-  Documentation for `AnyLogin`.
+  Development-only Phoenix account switcher generator.
+
+  Use `mix phx.gen.any_login` from a Phoenix application to generate the
+  application-specific integration files.
   """
-
-  @doc """
-  Hello world.
-
-  ## Examples
-
-      iex> AnyLogin.hello()
-      :world
-
-  """
-  def hello do
-    :world
-  end
 end
