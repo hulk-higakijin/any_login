@@ -442,31 +442,80 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
 
       def account_switcher(assigns) do
         ~H\"\"\"
-        <section id="any-login-switcher" class="fixed bottom-4 left-4 z-50 w-80 rounded-xl border bg-base-100 p-4 shadow-xl">
-          <p class="mb-3 text-sm font-semibold">Development account</p>
-          <form action={@switch_path} method="post" id="any-login-switcher-form" class="space-y-3">
-            <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
-            <input type="hidden" name="return_to" value={@return_to} />
-            <label for="any-login-user-id" class="sr-only">Account</label>
-            <select id="any-login-user-id" name="user_id" required class="w-full rounded-lg border p-2">
-              <option value="">Select an account</option>
-              <%= for user <- @users do %>
-                <option value={user.id} selected={@current_user && @current_user.id == user.id}>
-                  {Map.get(user, :email, user.id)}
-                </option>
-              <% end %>
-            </select>
-            <button type="submit" class="w-full rounded-lg bg-primary px-3 py-2 text-sm text-primary-content">
-              Switch account
-            </button>
-          </form>
-          <%= if @current_user do %>
-            <div class="mt-3 border-t pt-3 text-sm">
-              <span>{Map.get(@current_user, :email, @current_user.id)}</span>
-              <.link href={@logout_path} method="delete" class="ml-2 underline">Log out</.link>
-            </div>
-          <% end %>
+        <section id="any-login-switcher" class="fixed bottom-4 left-4 z-50">
+          <button
+            type="button"
+            id="any-login-switcher-toggle"
+            data-any-login-switcher-toggle
+            aria-label="Open development account switcher"
+            aria-controls="any-login-switcher-panel"
+            aria-expanded="false"
+            class="flex size-10 items-center justify-center rounded-lg bg-orange-400 text-white shadow-lg transition hover:bg-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-300"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" class="size-5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6.75a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.118a7.5 7.5 0 0 1 15 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.5-1.632Z" />
+            </svg>
+          </button>
+
+          <div
+            id="any-login-switcher-panel"
+            data-any-login-switcher-panel
+            hidden
+            class="absolute bottom-12 left-0 hidden w-80 rounded-xl border bg-base-100 p-4 shadow-xl"
+          >
+            <p class="mb-3 text-sm font-semibold">Development account</p>
+            <form action={@switch_path} method="post" id="any-login-switcher-form" class="space-y-3">
+              <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+              <input type="hidden" name="return_to" value={@return_to} />
+              <label for="any-login-user-id" class="sr-only">Account</label>
+              <select id="any-login-user-id" name="user_id" required class="w-full rounded-lg border p-2">
+                <option value="">Select an account</option>
+                <%= for user <- @users do %>
+                  <option value={user.id} selected={@current_user && @current_user.id == user.id}>
+                    {Map.get(user, :email, user.id)}
+                  </option>
+                <% end %>
+              </select>
+              <button type="submit" class="w-full rounded-lg bg-primary px-3 py-2 text-sm text-primary-content">
+                Switch account
+              </button>
+            </form>
+            <%= if @current_user do %>
+              <div class="mt-3 border-t pt-3 text-sm">
+                <span>{Map.get(@current_user, :email, @current_user.id)}</span>
+                <.link href={@logout_path} method="delete" class="ml-2 underline">Log out</.link>
+              </div>
+            <% end %>
+          </div>
         </section>
+
+        <script>
+          (() => {
+            const switcher = document.getElementById("any-login-switcher");
+            if (!switcher || switcher.dataset.initialized) return;
+
+            switcher.dataset.initialized = "true";
+            const toggle = switcher.querySelector("[data-any-login-switcher-toggle]");
+            const panel = switcher.querySelector("[data-any-login-switcher-panel]");
+
+            const close = () => {
+              panel.hidden = true;
+              panel.classList.add("hidden");
+              toggle.setAttribute("aria-expanded", "false");
+            };
+
+            toggle.addEventListener("click", () => {
+              const opening = panel.hidden;
+              panel.hidden = !opening;
+              panel.classList.toggle("hidden", !opening);
+              toggle.setAttribute("aria-expanded", String(opening));
+            });
+
+            document.addEventListener("click", (event) => {
+              if (!switcher.contains(event.target)) close();
+            });
+          })();
+        </script>
         \"\"\"
       end
     end

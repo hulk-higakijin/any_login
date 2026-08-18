@@ -32,6 +32,13 @@ defmodule AnyLoginTest do
     assert plug =~ "Accounts.list_users()"
     assert plug =~ "@dev_routes Application.compile_env(:demo, :dev_routes, false)"
     assert component =~ "def account_switcher(assigns)"
+    assert component =~ ~s(aria-label="Open development account switcher")
+    assert component =~ "data-any-login-switcher-toggle"
+    assert component =~ "data-any-login-switcher-panel"
+    assert component =~ "document.addEventListener(\"click\""
+    assert component =~ "if (!switcher.contains(event.target)) close();"
+    assert component =~ "panel.hidden = !opening"
+    assert component =~ "bg-orange-400"
     assert router =~ "plug DemoWeb.AnyLogin"
     assert router =~ ~s(scope "/dev", DemoWeb do)
     assert router =~ ~s(post "/account-switcher", AnyLoginController, :switch)
