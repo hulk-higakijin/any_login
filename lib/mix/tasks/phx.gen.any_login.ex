@@ -7,9 +7,13 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
       mix phx.gen.any_login Accounts users
 
   The first argument is the existing context module and the second argument is
-  the users table name. The generated code expects the context to expose
-  `list_users/0` and `get_user/1`, and the application's `UserAuth` module to
-  expose `log_in_user/2`.
+  the users table name. The generator creates the account switcher modules and
+  automatically updates the context, browser pipeline, development routes, and
+  root layout. The application's `UserAuth` module must expose `log_in_user/2`.
+
+  Pass `--no-inject` to generate only the three AnyLogin modules. If the schema
+  cannot be detected from its Ecto table name, pass its full module name with
+  `--schema MyApp.Accounts.User`.
   """
   use Mix.Task
 
@@ -19,7 +23,9 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
     app: :string,
     auth: :string,
     force: :boolean,
+    no_inject: :boolean,
     path: :string,
+    schema: :string,
     web: :string
   ]
 
@@ -49,13 +55,21 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
       web_module: web_module
     ]
 
+    changes =
+      if opts[:no_inject] do
+        []
+      else
+        integration_changes!(binding, root, opts)
+      end
+
     files = generated_files(binding, root)
 
     Enum.each(files, fn {path, contents} ->
       Generator.create_file(path, contents, force: opts[:force] == true)
     end)
 
-    print_instructions(binding)
+    apply_changes(changes)
+    print_result(binding, opts[:no_inject] == true)
   end
 
   defp parse_arguments!([context, table]),
@@ -105,6 +119,240 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
     ]
   end
 
+  defp integration_changes!(binding, root, opts) do
+    router_path = project_path(root, binding[:web_module], "router.ex")
+    layout_path = project_path(root, binding[:web_module], "components/layouts/root.html.heex")
+    context_path = Path.join(root, "lib/#{Macro.underscore(binding[:context_module])}.ex")
+
+    schema_module =
+      case opts[:schema] do
+        nil -> find_schema_module!(binding[:context_module], binding[:table], root)
+        schema -> validate_context!(schema)
+      end
+
+    [
+      change_file!(router_path, &integrate_router(&1, binding)),
+      change_file!(layout_path, &integrate_layout(&1, binding)),
+      change_file!(context_path, &integrate_context(&1, binding, schema_module))
+    ]
+  end
+
+  defp project_path(root, web_module, relative_path) do
+    Path.join(root, "lib/#{Macro.underscore(web_module)}/#{relative_path}")
+  end
+
+  defp change_file!(path, transform) do
+    source =
+      case File.read(path) do
+        {:ok, source} -> source
+        {:error, reason} -> Mix.raise("Could not read #{path}: #{:file.format_error(reason)}")
+      end
+
+    {path, source, transform.(source)}
+  end
+
+  defp find_schema_module!(context_module, table, root) do
+    context_dir = Path.join(root, "lib/#{Macro.underscore(context_module)}")
+
+    schema_pattern =
+      ~r/defmodule\s+([A-Z][A-Za-z0-9_.]*)\s+do[\s\S]*?\bschema\s+#{inspect(table)}/
+
+    context_dir
+    |> Path.join("**/*.ex")
+    |> Path.wildcard()
+    |> Enum.find_value(fn path ->
+      case Regex.run(schema_pattern, File.read!(path), capture: :all_but_first) do
+        [module] -> module
+        nil -> nil
+      end
+    end)
+    |> case do
+      nil ->
+        Mix.raise("""
+        Could not find an Ecto schema for table #{inspect(table)} under #{context_dir}.
+        Pass it explicitly, for example: --schema #{context_module}.User
+        """)
+
+      module ->
+        module
+    end
+  end
+
+  defp integrate_router(source, binding) do
+    source
+    |> inject_browser_plug(binding[:web_module])
+    |> inject_development_route(binding)
+  end
+
+  defp inject_browser_plug(source, web_module) do
+    plug = "plug #{web_module}.AnyLogin"
+
+    if String.contains?(source, plug) do
+      source
+    else
+      inject_before_block_end!(
+        source,
+        ~r/^(\s*)pipeline\s+:browser\s+do\s*$/,
+        fn indent -> "#{indent}  #{plug}\n" end,
+        "the :browser pipeline"
+      )
+    end
+  end
+
+  defp inject_development_route(source, binding) do
+    route_pattern =
+      ~r/^\s*post\s+"\/account-switcher",\s+(?:[A-Z][A-Za-z0-9_.]*\.)?AnyLoginController,\s+:switch\s*$/m
+
+    if Regex.match?(route_pattern, source) do
+      source
+    else
+      do_inject_development_route(source, binding)
+    end
+  end
+
+  defp do_inject_development_route(source, binding) do
+    app = binding[:app_module] |> Macro.underscore()
+
+    dev_pattern =
+      ~r/^(\s*)if\s+Application\.compile_env\(\s*:#{Regex.escape(app)},\s*:dev_routes(?:,\s*false)?\s*\)\s+do\s*$/
+
+    scope = fn indent ->
+      """
+      #{indent}  scope "/dev", #{binding[:web_module]} do
+      #{indent}    pipe_through :browser
+
+      #{indent}    post "/account-switcher", AnyLoginController, :switch
+      #{indent}  end
+
+      """
+    end
+
+    case find_line(source, dev_pattern) do
+      {:ok, index, indent, lines} ->
+        List.insert_at(lines, index + 1, scope.(indent)) |> Enum.join()
+
+      :error ->
+        block =
+          """
+
+            if Application.compile_env(:#{app}, :dev_routes, false) do
+              scope "/dev", #{binding[:web_module]} do
+                pipe_through :browser
+
+                post "/account-switcher", AnyLoginController, :switch
+              end
+            end
+          """
+
+        inject_before_final_end!(source, block, "the router module")
+    end
+  end
+
+  defp integrate_layout(source, binding) do
+    if String.contains?(source, "AnyLoginComponent.account_switcher") do
+      source
+    else
+      component =
+        """
+            <%= if assigns[:any_login_enabled] do %>
+              <#{binding[:web_module]}.AnyLoginComponent.account_switcher
+                users={@any_login_users}
+                current_user={assigns[:current_scope] && assigns[:current_scope].user}
+                return_to={@any_login_return_to}
+              />
+            <% end %>
+        """
+
+      case String.split(source, "</body>", parts: 2) do
+        [before, after_body] -> before <> component <> "  </body>" <> after_body
+        [_] -> Mix.raise("Could not find </body> in the root layout")
+      end
+    end
+  end
+
+  defp integrate_context(source, binding, schema_module) do
+    functions =
+      [
+        unless(function_defined?(source, "list_users"),
+          do: "  def list_users, do: #{binding[:app_module]}.Repo.all(#{schema_module})\n"
+        ),
+        unless(function_defined?(source, "get_user"),
+          do: "  def get_user(id), do: #{binding[:app_module]}.Repo.get(#{schema_module}, id)\n"
+        )
+      ]
+      |> Enum.reject(&is_nil/1)
+
+    case functions do
+      [] ->
+        source
+
+      functions ->
+        inject_before_final_end!(source, "\n" <> Enum.join(functions, "\n"), "the context module")
+    end
+  end
+
+  defp function_defined?(source, name) do
+    Regex.match?(~r/^\s*def\s+#{name}(?:\s*\(|\s+[^!]|,)/m, source)
+  end
+
+  defp inject_before_block_end!(source, header_pattern, snippet, description) do
+    case find_line(source, header_pattern) do
+      {:ok, index, indent, lines} ->
+        end_index =
+          lines
+          |> Enum.with_index()
+          |> Enum.drop(index + 1)
+          |> Enum.find_value(fn {line, line_index} ->
+            if String.trim_trailing(line) == "#{indent}end", do: line_index
+          end)
+
+        if end_index do
+          List.insert_at(lines, end_index, snippet.(indent)) |> Enum.join()
+        else
+          Mix.raise("Could not find the end of #{description}")
+        end
+
+      :error ->
+        Mix.raise("Could not find #{description}")
+    end
+  end
+
+  defp find_line(source, pattern) do
+    lines = String.split(source, ~r/(?<=\n)/)
+
+    case Enum.find_index(lines, &Regex.match?(pattern, String.trim_trailing(&1))) do
+      nil ->
+        :error
+
+      index ->
+        [indent] =
+          Regex.run(pattern, String.trim_trailing(Enum.at(lines, index)), capture: :all_but_first)
+
+        {:ok, index, indent, lines}
+    end
+  end
+
+  defp inject_before_final_end!(source, snippet, description) do
+    trimmed = String.trim_trailing(source)
+
+    if String.ends_with?(trimmed, "end") do
+      String.replace_suffix(trimmed, "end", snippet <> "end\n")
+    else
+      Mix.raise("Could not find the end of #{description}")
+    end
+  end
+
+  defp apply_changes(changes) do
+    Enum.each(changes, fn
+      {_path, source, source} ->
+        :ok
+
+      {path, _source, updated} ->
+        Mix.shell().info([:green, "* injecting ", :reset, Path.relative_to_cwd(path)])
+        File.write!(path, updated)
+    end)
+  end
+
   defp controller_template(binding) do
     """
     defmodule #{binding[:web_module]}.AnyLoginController do
@@ -115,7 +363,7 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
 
       def switch(conn, %{"user_id" => user_id} = params) do
         with {id, ""} <- Integer.parse(user_id),
-             user when not is_nil(user) <- #{binding[:context_module]}.get_user(id) do
+             user when not is_nil(user) <- Accounts.get_user(id) do
           conn
           |> put_session(:user_return_to, safe_return_to(params["return_to"]))
           |> put_flash(:info, "Logged in as \#{user_label(user)}.")
@@ -170,7 +418,7 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
         if @dev_routes do
           conn
           |> assign(:any_login_enabled, true)
-          |> assign(:any_login_users, #{binding[:context_module]}.list_users())
+          |> assign(:any_login_users, Accounts.list_users())
           |> assign(:any_login_return_to, Phoenix.Controller.current_path(conn))
         else
           assign(conn, :any_login_enabled, false)
@@ -226,7 +474,15 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
     |> Code.format_string!()
   end
 
-  defp print_instructions(binding) do
+  defp print_result(binding, false) do
+    Mix.shell().info("""
+
+    AnyLogin installed for #{binding[:context_module]}.#{binding[:table]}.
+    Router, root layout, and context integration are ready. No manual setup is required.
+    """)
+  end
+
+  defp print_result(binding, true) do
     Mix.shell().info("""
 
     AnyLogin files generated for #{binding[:context_module]}.#{binding[:table]}.
@@ -246,10 +502,10 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
 
     Add the component to your root layout:
 
-        <%= if @any_login_enabled do %>
+        <%= if assigns[:any_login_enabled] do %>
           <#{binding[:web_module]}.AnyLoginComponent.account_switcher
             users={@any_login_users}
-            current_user={@current_scope && @current_scope.user}
+            current_user={assigns[:current_scope] && assigns[:current_scope].user}
             return_to={@any_login_return_to}
           />
         <% end %>
