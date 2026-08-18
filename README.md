@@ -1,9 +1,10 @@
 # AnyLogin
 
-Generates a development-only account switcher for Phoenix applications.
+Provides a development-only account switcher for Phoenix applications.
 
-The generator creates app-specific controller, Plug, and component modules and
-wires them into a Phoenix application automatically.
+The runtime is provided by the package itself. The generator only wires the
+shared runtime into an application and does not create application-specific
+modules.
 
 ## Generator
 
@@ -23,29 +24,16 @@ Useful options:
 mix phx.gen.any_login Accounts users --web MyAppWeb --auth MyAppWeb.UserAuth
 ```
 
-By default the generator discovers the Ecto schema whose `schema` table is
-`"users"`. For a non-standard project, provide it explicitly:
+It updates the application automatically:
 
-```sh
-mix phx.gen.any_login Accounts users --schema MyApp.Accounts.User
-```
-
-The generator creates:
-
-- `lib/my_app_web/controllers/any_login_controller.ex`
-- `lib/my_app_web/plugs/any_login.ex`
-- `lib/my_app_web/components/any_login_component.ex`
-
-It also updates the application automatically:
-
-- adds `list_users/0` and `get_user/1` to the context when missing
+- configures the context and authentication modules
 - adds the AnyLogin Plug to the browser pipeline
 - adds the account-switcher route under `/dev`
 - renders the component in the root layout
 
 The integration is idempotent, so rerunning the generator does not duplicate
-these additions. Pass `--no-inject` to generate only the three files and print
-manual integration instructions.
+these additions. Pass `--no-inject` to print manual integration instructions
+without modifying the project.
 
 ## Generated Integration
 
@@ -66,6 +54,14 @@ mix deps.get
 mix phx.gen.any_login Accounts users
 ```
 
+The generator adds this development configuration:
+
+```elixir
+config :any_login,
+  context: MyApp.Accounts,
+  auth: MyAppWeb.UserAuth
+```
+
 That command performs the complete integration. The resulting browser pipeline
 contains:
 
@@ -78,7 +74,8 @@ pipeline :browser do
   plug :protect_from_forgery
   plug :put_secure_browser_headers
   plug :fetch_current_scope_for_user
-  plug MyAppWeb.AnyLogin
+  plug AnyLogin.Plug,
+    enabled: Application.compile_env(:my_app, :dev_routes, false)
 end
 ```
 
@@ -89,16 +86,16 @@ if Application.compile_env(:my_app, :dev_routes, false) do
   scope "/dev", MyAppWeb do
     pipe_through :browser
 
-    post "/account-switcher", AnyLoginController, :switch
+    post "/account-switcher", Elixir.AnyLogin.Controller, :switch
   end
 end
 ```
 
-The generated component is added to the root layout:
+The shared component is added to the root layout:
 
 ```heex
 <%= if assigns[:any_login_enabled] do %>
-  <MyAppWeb.AnyLoginComponent.account_switcher
+  <AnyLogin.Component.account_switcher
     users={@any_login_users}
     current_user={assigns[:current_scope] && assigns[:current_scope].user}
     return_to={@any_login_return_to}
