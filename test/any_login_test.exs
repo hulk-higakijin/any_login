@@ -1,5 +1,33 @@
+defmodule AnyLoginTest.Context do
+  def get_user(id), do: %{id: id, email: "uuid@example.test"}
+end
+
+defmodule AnyLoginTest.Auth do
+  def log_in_user(conn, user), do: Plug.Conn.assign(conn, :logged_in_user, user)
+end
+
 defmodule AnyLoginTest do
   use ExUnit.Case
+
+  test "switches to a user with a binary primary key" do
+    Application.put_env(:any_login, :context, AnyLoginTest.Context)
+    Application.put_env(:any_login, :auth, AnyLoginTest.Auth)
+    Application.delete_env(:any_login, :repo)
+
+    on_exit(fn ->
+      Application.delete_env(:any_login, :context)
+      Application.delete_env(:any_login, :auth)
+    end)
+
+    conn =
+      :post
+      |> Plug.Test.conn("/dev/account-switcher")
+      |> Plug.Test.init_test_session(%{})
+      |> Phoenix.Controller.fetch_flash([])
+      |> AnyLogin.Controller.switch(%{"user_id" => "550e8400-e29b-41d4-a716-446655440000"})
+
+    assert conn.assigns.logged_in_user.id == "550e8400-e29b-41d4-a716-446655440000"
+  end
 
   test "integrates the shared runtime without generating application modules" do
     path = project_path()

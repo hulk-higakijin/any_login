@@ -26,7 +26,7 @@ defmodule AnyLogin.MixProject do
   defp deps do
     [
       {:phoenix, "~> 1.8"},
-      {:phoenix_live_view, "~> 1.2"},
+      {:phoenix_live_view, "~> 1.1 or ~> 1.2"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end

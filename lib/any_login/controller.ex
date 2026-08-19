@@ -8,8 +8,7 @@ defmodule AnyLogin.Controller do
   alias AnyLogin.Config
 
   def switch(conn, %{"user_id" => user_id} = params) do
-    with {id, ""} <- Integer.parse(user_id),
-         user when not is_nil(user) <- Config.get_user(id) do
+    with user when not is_nil(user) <- Config.get_user(user_id) do
       conn
       |> put_session(:user_return_to, safe_return_to(params["return_to"]))
       |> put_flash(:info, "Logged in as #{user_label(user)}.")
