@@ -24,9 +24,15 @@ Useful options:
 mix phx.gen.any_login Accounts users --web MyAppWeb --auth MyAppWeb.UserAuth
 ```
 
+For a non-standard schema location, pass its full module name explicitly:
+
+```sh
+mix phx.gen.any_login Accounts users --schema MyApp.Accounts.User
+```
+
 It updates the application automatically:
 
-- configures the context and authentication modules
+- configures the repository, schema, and authentication module
 - adds the AnyLogin Plug to the browser pipeline
 - adds the account-switcher route under `/dev`
 - renders the component in the root layout
