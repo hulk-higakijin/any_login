@@ -29,6 +29,12 @@
   display: none;
 }
 
+.any-login-switcher__icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  color: #fff;
+}
+
 .any-login-switcher__toggle:hover {
   background: #f97316;
   transform: translateY(-1px);
