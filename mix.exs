@@ -25,6 +25,8 @@ defmodule AnyLogin.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
+      {:phoenix, "~> 1.8"},
+      {:phoenix_live_view, "~> 1.1 or ~> 1.2"},
       {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end
@@ -33,7 +35,7 @@ defmodule AnyLogin.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/higakijin/any_login"},
-      files: ~w(lib test .formatter.exs mix.exs README.md LICENSE)
+      files: ~w(assets lib test .formatter.exs mix.exs README.md LICENSE)
     ]
   end
 
