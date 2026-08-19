@@ -19,7 +19,8 @@ defmodule AnyLoginTest do
              ~s(post "/account-switcher", Elixir.AnyLogin.Controller, :switch)
 
     assert layout =~ "AnyLogin.Component.account_switcher"
-    assert config =~ "context: Demo.Accounts"
+    assert config =~ "repo: Demo.Repo"
+    assert config =~ "schema: Demo.Accounts.User"
     assert config =~ "auth: DemoWeb.UserAuth"
 
     refute File.exists?(Path.join(path, "lib/demo_web/controllers/any_login_controller.ex"))
@@ -51,12 +52,13 @@ defmodule AnyLoginTest do
 
   test "can print instructions without modifying a project" do
     path = project_path()
-    File.mkdir_p!(path)
+    create_project_fixture(path)
     on_exit(fn -> File.rm_rf!(path) end)
+    original = project_files(path)
 
     Mix.Tasks.Phx.Gen.AnyLogin.run(args(path) ++ ["--no-inject"])
 
-    refute File.exists?(Path.join(path, "lib/demo_web/router.ex"))
+    assert project_files(path) == original
   end
 
   test "preserves an existing account switcher route" do
@@ -114,6 +116,15 @@ defmodule AnyLoginTest do
       "config/dev.exs" => "import Config\n\nconfig :demo, dev_routes: true\n",
       "lib/demo/accounts.ex" => """
       defmodule Demo.Accounts do
+      end
+      """,
+      "lib/demo/accounts/user.ex" => """
+      defmodule Demo.Accounts.User do
+        use Ecto.Schema
+
+        schema "users" do
+          field :email, :string
+        end
       end
       """,
       "lib/demo_web/router.ex" => """

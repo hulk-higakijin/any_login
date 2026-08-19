@@ -58,7 +58,8 @@ The generator adds this development configuration:
 
 ```elixir
 config :any_login,
-  context: MyApp.Accounts,
+  repo: MyApp.Repo,
+  schema: MyApp.Accounts.User,
   auth: MyAppWeb.UserAuth
 ```
 

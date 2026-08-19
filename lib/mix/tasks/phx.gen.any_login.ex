@@ -6,8 +6,8 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
 
       mix phx.gen.any_login Accounts users
 
-  The context must expose `list_users/0` and `get_user/1`, and the application's
-  `UserAuth` module must expose `log_in_user/2`. The task updates only the
+  The application must provide a `UserAuth` module exposing `log_in_user/2`.
+  The task discovers the user schema from the table name and updates only the
   development config, browser pipeline, development route, and root layout.
   """
 
@@ -18,6 +18,7 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
     auth: :string,
     no_inject: :boolean,
     path: :string,
+    schema: :string,
     web: :string
   ]
 
@@ -34,11 +35,14 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
     web_module = opts[:web] || "#{app_module}Web"
     auth_module = opts[:auth] || "#{web_module}.UserAuth"
     root = opts[:path] || File.cwd!()
+    context_module = qualify_context(context, app_module)
+    schema_module = opts[:schema] || find_schema_module!(context_module, table, root)
 
     binding = [
       app_module: app_module,
       auth_module: auth_module,
-      context_module: qualify_context(context, app_module),
+      context_module: context_module,
+      schema_module: schema_module,
       table: table,
       web_module: web_module
     ]
@@ -80,6 +84,32 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
       context
     else
       "#{app_module}.#{context}"
+    end
+  end
+
+  defp find_schema_module!(context_module, table, root) do
+    context_dir = Path.join(root, "lib/#{Macro.underscore(context_module)}")
+
+    schema_pattern =
+      ~r/defmodule\s+([A-Z][A-Za-z0-9_.]*)\s+do[\s\S]*?\bschema\s+#{inspect(table)}/
+
+    context_dir
+    |> Path.join("**/*.ex")
+    |> Path.wildcard()
+    |> Enum.find_value(fn path ->
+      case Regex.run(schema_pattern, File.read!(path), capture: :all_but_first) do
+        [module] -> module
+        nil -> nil
+      end
+    end)
+    |> case do
+      nil ->
+        Mix.raise(
+          "Could not find an Ecto schema for table #{inspect(table)} under #{context_dir}"
+        )
+
+      module ->
+        module
     end
   end
 
@@ -203,7 +233,8 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
       config = """
 
       config :any_login,
-        context: #{binding[:context_module]},
+        repo: #{binding[:app_module]}.Repo,
+        schema: #{binding[:schema_module]},
         auth: #{binding[:auth_module]}
       """
 
@@ -279,7 +310,8 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
     AnyLogin runtime integration for #{binding[:context_module]}.#{binding[:table]}:
 
     config :any_login,
-      context: #{binding[:context_module]},
+      repo: #{binding[:app_module]}.Repo,
+      schema: #{binding[:schema_module]},
       auth: #{binding[:auth_module]}
 
     plug AnyLogin.Plug,
