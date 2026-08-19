@@ -84,10 +84,10 @@ The development-only route is added as:
 
 ```elixir
 if Application.compile_env(:my_app, :dev_routes, false) do
-  scope "/dev", MyAppWeb do
+  scope "/dev", AnyLogin do
     pipe_through :browser
 
-    post "/account-switcher", Elixir.AnyLogin.Controller, :switch
+    post "/account-switcher", Controller, :switch
   end
 end
 ```
@@ -103,6 +103,7 @@ The shared component is added to the root layout:
   />
 <% end %>
 ```
+
 
 Start the application normally:
 

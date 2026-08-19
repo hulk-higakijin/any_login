@@ -16,13 +16,14 @@ defmodule AnyLoginTest do
              "plug AnyLogin.Plug, enabled: Application.compile_env(:demo, :dev_routes, false)"
 
     assert router =~
-             ~s(post "/account-switcher", Elixir.AnyLogin.Controller, :switch)
+             ~s(scope "/dev", AnyLogin do)
+
+    assert router =~ ~s(post "/account-switcher", Controller, :switch)
 
     assert layout =~ "AnyLogin.Component.account_switcher"
     assert config =~ "repo: Demo.Repo"
     assert config =~ "schema: Demo.Accounts.User"
     assert config =~ "auth: DemoWeb.UserAuth"
-
     refute File.exists?(Path.join(path, "lib/demo_web/controllers/any_login_controller.ex"))
     refute File.exists?(Path.join(path, "lib/demo_web/plugs/any_login.ex"))
     refute File.exists?(Path.join(path, "lib/demo_web/components/any_login_component.ex"))
@@ -104,7 +105,8 @@ defmodule AnyLoginTest do
     %{
       router: read(path, "lib/demo_web/router.ex"),
       layout: read(path, "lib/demo_web/components/layouts/root.html.heex"),
-      config: read(path, "config/dev.exs")
+      config: read(path, "config/dev.exs"),
+      css: read(path, "assets/css/app.css")
     }
   end
 
@@ -114,6 +116,7 @@ defmodule AnyLoginTest do
   defp create_project_fixture(path) do
     files = %{
       "config/dev.exs" => "import Config\n\nconfig :demo, dev_routes: true\n",
+      "assets/css/app.css" => "@import \"tailwindcss\" source(none);\n",
       "lib/demo/accounts.ex" => """
       defmodule Demo.Accounts do
       end

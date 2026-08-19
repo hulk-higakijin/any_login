@@ -163,7 +163,7 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
 
   defp inject_development_route(source, binding) do
     route_pattern =
-      ~r/^\s*post\s+"\/account-switcher",\s+(?:Elixir\.)?AnyLogin\.Controller,\s+:switch\s*$/m
+      ~r/^\s*post\s+"\/account-switcher",\s+(?:Elixir\.)?(?:AnyLogin\.Controller|Controller),\s+:switch\s*$/m
 
     if Regex.match?(route_pattern, source) do
       source
@@ -175,10 +175,10 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
 
       scope = fn indent ->
         """
-        #{indent}  scope "/dev", #{binding[:web_module]} do
+        #{indent}  scope "/dev", AnyLogin do
         #{indent}    pipe_through :browser
 
-        #{indent}    post "/account-switcher", Elixir.AnyLogin.Controller, :switch
+        #{indent}    post "/account-switcher", Controller, :switch
         #{indent}  end
 
         """
@@ -192,10 +192,10 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
           block = """
 
             if Application.compile_env(:#{app}, :dev_routes, false) do
-              scope "/dev", #{binding[:web_module]} do
+              scope "/dev", AnyLogin do
                 pipe_through :browser
 
-                post "/account-switcher", Elixir.AnyLogin.Controller, :switch
+                post "/account-switcher", Controller, :switch
               end
             end
           """
@@ -317,7 +317,7 @@ defmodule Mix.Tasks.Phx.Gen.AnyLogin do
     plug AnyLogin.Plug,
       enabled: Application.compile_env(:#{Macro.underscore(binding[:app_module])}, :dev_routes, false)
 
-    post "/account-switcher", Elixir.AnyLogin.Controller, :switch
+    post "/account-switcher", Controller, :switch
 
     <AnyLogin.Component.account_switcher
       users={@any_login_users}

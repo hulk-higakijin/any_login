@@ -35,7 +35,7 @@ defmodule AnyLogin.MixProject do
     [
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/higakijin/any_login"},
-      files: ~w(lib test .formatter.exs mix.exs README.md LICENSE)
+      files: ~w(assets lib test .formatter.exs mix.exs README.md LICENSE)
     ]
   end
 
