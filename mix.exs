@@ -6,8 +6,8 @@ defmodule AnyLogin.MixProject do
       app: :any_login,
       version: "0.1.0",
       elixir: "~> 1.20",
-      description: "A generator for development-only Phoenix account switching",
-      source_url: "https://github.com/higakijin/any_login",
+      description: "A development-only Phoenix account switcher and generator",
+      source_url: "https://github.com/hulk-higakijin/any_login",
       package: package(),
       docs: docs(),
       start_permanent: Mix.env() == :prod,
@@ -34,7 +34,7 @@ defmodule AnyLogin.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/higakijin/any_login"},
+      links: %{"GitHub" => "https://github.com/hulk-higakijin/any_login"},
       files: ~w(assets lib test .formatter.exs mix.exs README.md LICENSE)
     ]
   end
